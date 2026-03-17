@@ -40,6 +40,10 @@ export default function CesiumViewer() {
           })
         : new Cesium.EllipsoidTerrainProvider();
 
+      const imageryProvider = new Cesium.OpenStreetMapImageryProvider({
+        url: "https://a.tile.openstreetmap.org/",
+      });
+
       viewer = new Cesium.Viewer(containerRef.current, {
         animation: false,
         timeline: false,
@@ -52,12 +56,32 @@ export default function CesiumViewer() {
         scene3DOnly: true,
         requestRenderMode: true,
         maximumRenderTimeChange: 0.1,
-        // Use OSM imagery to avoid requiring a Cesium Ion token.
-        imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-          url: "https://a.tile.openstreetmap.org/",
-        }),
+        imageryProvider,
         terrainProvider,
       });
+
+      // If imagery tiles fail (e.g. OSM rate-limiting), swap to a fallback provider.
+      const attachFallback = (imageryLayer: any) => {
+        if (!imageryLayer || !imageryLayer.errorEvent) return;
+        imageryLayer.errorEvent.addEventListener((error: any) => {
+          console.warn("Base imagery provider failed, switching to fallback:", error);
+          viewer.imageryLayers.removeAll();
+          viewer.imageryLayers.addImageryProvider(
+            new Cesium.UrlTemplateImageryProvider({
+              url: "https://tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+              credit: "© OpenStreetMap contributors",
+            })
+          );
+          setTerrainStatus((prev) => `${prev} (switched to fallback imagery)`);
+        });
+      };
+
+      // Attach fallback as soon as a layer becomes available
+      viewer.imageryLayers.layerAdded.addEventListener((layer) => {
+        attachFallback(layer);
+      });
+      // If the layer already exists, attach immediately.
+      attachFallback(viewer.imageryLayers.get(0));
 
       // Center camera on Utah and zoom in to show terrain detail.
       viewer.camera.setView({
@@ -75,11 +99,16 @@ export default function CesiumViewer() {
 
       // Constrain navigation so users remain in the Utah region.
       const controller = viewer.scene.screenSpaceCameraController;
-      controller.minimumZoomDistance = 20000; // do not zoom too close
+      controller.minimumZoomDistance = 5000; // zoom in closer for terrain detail
       controller.maximumZoomDistance = 500000; // do not zoom out to full globe
       controller.enableRotate = true;
       controller.enableTranslate = true;
       controller.enableZoom = true;
+
+      // Disable camera inertia to avoid slow drifting.
+      controller.inertiaSpin = 0.0;
+      controller.inertiaTranslate = 0.0;
+      controller.inertiaZoom = 0.0;
 
       // Performance tuning (helps on lower-end GPUs)
       viewer.scene.globe.maximumScreenSpaceError = 16;
@@ -97,18 +126,7 @@ export default function CesiumViewer() {
       const imageryProviderName = "OpenStreetMapImageryProvider";
       const tokenInfo = hasIonToken ? " (ion token set)" : "";
 
-      if (hasTerrainUrl) {
-        setTerrainStatus(`Loading terrain from ${TERRAIN_URL}... | terrain=${terrainProviderName}${tokenInfo} | imagery=${imageryProviderName}`);
-        viewer.terrainProvider.readyPromise
-          .then(() =>
-            setTerrainStatus(`Terrain provider ready | terrain=${terrainProviderName}${tokenInfo} | imagery=${imageryProviderName}`)
-          )
-          .catch((error) => {
-            console.error("Terrain provider failed:", error);
-            setTerrainStatus(`Terrain provider failed; falling back to ellipsoid | terrain=EllipsoidTerrainProvider | imagery=${imageryProviderName}`);
-            viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
-          });
-      } else if (hasIonToken) {
+      const loadIonTerrain = () => {
         setTerrainStatus(`Loading Cesium World Terrain… | terrain=${terrainProviderName}${tokenInfo} | imagery=${imageryProviderName}`);
         Cesium.createWorldTerrainAsync({ requestVertexNormals: true })
           .then((terrainProvider) => {
@@ -121,6 +139,38 @@ export default function CesiumViewer() {
             console.error("Failed to load Cesium World Terrain:", error);
             setTerrainStatus(`Failed to load terrain; using ellipsoid | terrain=EllipsoidTerrainProvider | imagery=${imageryProviderName}`);
           });
+      };
+
+      const loadIonImagery = () => {
+        setTerrainStatus((prev) => `${prev} | loading Ion imagery…`);
+        Cesium.createWorldImageryAsync()
+          .then((imagery) => {
+            if (viewer && !viewer.isDestroyed()) {
+              viewer.imageryLayers.removeAll();
+              viewer.imageryLayers.addImageryProvider(imagery);
+              setTerrainStatus((prev) => `${prev} | ion imagery loaded`);
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to load Cesium World Imagery:", error);
+            setTerrainStatus((prev) => `${prev} | failed to load ion imagery`);
+          });
+      };
+
+      if (hasTerrainUrl) {
+        setTerrainStatus(`Loading terrain from ${TERRAIN_URL}... | terrain=${terrainProviderName}${tokenInfo} | imagery=${imageryProviderName}`);
+        viewer.terrainProvider.readyPromise
+          .then(() =>
+            setTerrainStatus(`Terrain provider ready | terrain=${terrainProviderName}${tokenInfo} | imagery=${imageryProviderName}`)
+          )
+          .catch((error) => {
+            console.error("Terrain provider failed:", error);
+            setTerrainStatus(`Terrain provider failed; falling back to ellipsoid | terrain=EllipsoidTerrainProvider | imagery=${imageryProviderName}`);
+            viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+          });
+      } else if (hasIonToken) {
+        loadIonTerrain();
+        loadIonImagery();
       } else {
         setTerrainStatus(`Using ellipsoid (no terrain data) | terrain=${terrainProviderName} | imagery=${imageryProviderName}`);
       }
@@ -147,10 +197,21 @@ export default function CesiumViewer() {
       ),
       orientation: {
         heading: 0,
-        pitch: Cesium.Math.toRadians(-45),
+        pitch: Cesium.Math.toRadians(-55),
         roll: 0,
       },
       duration: 2.0,
+    });
+  };
+
+  const flyCloser = () => {
+    if (!viewerRef.current) return;
+    const camera = viewerRef.current.camera;
+    const position = camera.positionCartographic;
+    const newHeight = Math.max(1000, position.height * 0.6);
+    camera.flyTo({
+      destination: Cesium.Cartesian3.fromRadians(position.longitude, position.latitude, newHeight),
+      duration: 1.2,
     });
   };
 
@@ -176,6 +237,9 @@ export default function CesiumViewer() {
         {terrainStatus}
         <button className="terrainButton" onClick={flyToUtah}>
           Zoom to Utah
+        </button>
+        <button className="terrainButton" onClick={flyCloser}>
+          Zoom Closer
         </button>
       </div>
       <div ref={containerRef} className="cesiumContainer" />

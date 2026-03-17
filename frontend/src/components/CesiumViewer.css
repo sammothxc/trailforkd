@@ -35,6 +35,10 @@
   cursor: pointer;
 }
 
+.terrainButton + .terrainButton {
+  margin-left: 0.3rem;
+}
+
 .terrainButton:hover {
   background: rgba(255, 255, 255, 0.1);
 }
