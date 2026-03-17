@@ -18,6 +18,7 @@ export default function CesiumViewer() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const [terrainStatus, setTerrainStatus] = useState("Initializing...");
+  const [cameraInfo, setCameraInfo] = useState<{ lon: number; lat: number; height: number } | null>(null);
 
   const hasIonToken = useMemo(() => Boolean(TERRAIN_TOKEN), []);
   const hasTerrainUrl = useMemo(() => Boolean(TERRAIN_URL), []);
@@ -27,6 +28,7 @@ export default function CesiumViewer() {
     if (viewerRef.current) return;
 
     let viewer: Cesium.Viewer | null = null;
+    let cameraSampler: number | undefined;
 
     try {
       if (hasIonToken) {
@@ -104,11 +106,17 @@ export default function CesiumViewer() {
       controller.enableRotate = true;
       controller.enableTranslate = true;
       controller.enableZoom = true;
+      controller.enableTilt = false; // avoid tilt drifting when not user-driven
+      controller.enableLook = false; // disable right-click camera look
 
       // Disable camera inertia to avoid slow drifting.
       controller.inertiaSpin = 0.0;
       controller.inertiaTranslate = 0.0;
       controller.inertiaZoom = 0.0;
+
+      // Disable collision detection, which can cause subtle “drift” as Cesium adjusts the camera
+      // to avoid intersecting terrain when the camera is close to the surface.
+      controller.enableCollisionDetection = false;
 
       // Performance tuning (helps on lower-end GPUs)
       viewer.scene.globe.maximumScreenSpaceError = 16;
@@ -116,7 +124,20 @@ export default function CesiumViewer() {
       viewer.scene.globe.enableLighting = true;
       viewer.scene.globe.depthTestAgainstTerrain = true;
 
+      // Expose viewer for debugging (e.g., camera drift diagnostics)
+      (window as any).__trailforkd_viewer = viewer;
       viewerRef.current = viewer;
+
+      // Periodically sample the camera position so we can diagnose any unexpected drift.
+      const cameraSampler = window.setInterval(() => {
+        if (!viewer || viewer.isDestroyed()) return;
+        const carto = viewer.camera.positionCartographic;
+        setCameraInfo({
+          lon: Cesium.Math.toDegrees(carto.longitude),
+          lat: Cesium.Math.toDegrees(carto.latitude),
+          height: carto.height,
+        });
+      }, 250);
 
       const terrainProviderName = hasTerrainUrl
         ? "CesiumTerrainProvider"
@@ -180,6 +201,9 @@ export default function CesiumViewer() {
     }
 
     return () => {
+      if (cameraSampler !== undefined) {
+        window.clearInterval(cameraSampler);
+      }
       if (viewer) {
         viewer.destroy();
       }
@@ -242,6 +266,11 @@ export default function CesiumViewer() {
           Zoom Closer
         </button>
       </div>
+      {cameraInfo ? (
+        <div className="cameraStatus">
+          lon: {cameraInfo.lon.toFixed(4)} | lat: {cameraInfo.lat.toFixed(4)} | h: {cameraInfo.height.toFixed(0)}m
+        </div>
+      ) : null}
       <div ref={containerRef} className="cesiumContainer" />
     </div>
   );

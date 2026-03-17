@@ -42,3 +42,15 @@
 .terrainButton:hover {
   background: rgba(255, 255, 255, 0.1);
 }
+
+.cameraStatus {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.4rem;
+  background: rgba(20, 23, 30, 0.85);
+  color: #f0f6ff;
+  font-size: 0.78rem;
+  z-index: 10;
+}
