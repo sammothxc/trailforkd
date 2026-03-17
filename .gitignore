@@ -1,0 +1,22 @@
+# Node
+node_modules/
+
+# Build outputs
+dist/
+.build/
+
+# Environment files
+.env
+.env.local
+
+# Editors
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# OS
+.DS_Store
+Thumbs.db
