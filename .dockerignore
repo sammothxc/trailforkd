@@ -1,7 +1,6 @@
 .git
 .claude
 data/
-nginx/terrain.conf
 *.md
 LICENSE
 trailforkd-config.js

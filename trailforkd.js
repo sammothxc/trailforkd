@@ -21,6 +21,7 @@ function setStatus(msg) {
 
 const viewer = new Cesium.Viewer("cesiumContainer", {
   terrainProvider: new Cesium.EllipsoidTerrainProvider(), // overridden below
+  baseLayer: false, // imagery added explicitly below — prevents default Ion request
   animation: false,
   timeline: false,
   baseLayerPicker: false,
