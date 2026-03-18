@@ -12,11 +12,10 @@ services:
     restart: unless-stopped
 
   terrain-server:
-    image: python:3-alpine
-    user: "568:568"
-    command: python3 -m http.server 8080 --directory /data
+    image: nginx:alpine
     volumes:
-      - ./data/terrain-tiles:/data:ro
+      - ./data/terrain-tiles:/usr/share/nginx/html:ro
+      - ./nginx/terrain.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - internal
     restart: unless-stopped
