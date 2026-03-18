@@ -30,11 +30,77 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
   navigationHelpButton: false,
   infoBox: false,
   scene3DOnly: true,
-  imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-    url: "https://a.tile.openstreetmap.org/",
-    credit: "© OpenStreetMap contributors",
-  }),
 });
+
+// --- Imagery selector ---
+
+function setImagery(provider) {
+  viewer.imageryLayers.removeAll();
+  viewer.imageryLayers.addImageryProvider(provider);
+}
+
+const imageryOptions = [
+  {
+    text: "ESRI Satellite",
+    onselect() {
+      setImagery(new Cesium.UrlTemplateImageryProvider({
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        credit: "Esri, Maxar, Earthstar Geographics",
+      }));
+    },
+  },
+  {
+    text: "ESRI Topo",
+    onselect() {
+      setImagery(new Cesium.UrlTemplateImageryProvider({
+        url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+        credit: "Esri, HERE, Garmin, FAO, USGS",
+      }));
+    },
+  },
+  {
+    text: "OpenStreetMap",
+    onselect() {
+      setImagery(new Cesium.UrlTemplateImageryProvider({
+        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        subdomains: ["a", "b", "c"],
+        credit: "© OpenStreetMap contributors",
+      }));
+    },
+  },
+  {
+    text: "OpenTopoMap",
+    onselect() {
+      setImagery(new Cesium.UrlTemplateImageryProvider({
+        url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+        subdomains: ["a", "b", "c"],
+        credit: "© OpenStreetMap contributors, SRTM | Map style: © OpenTopoMap",
+      }));
+    },
+  },
+  {
+    text: "Cesium Ion Imagery (requires token)",
+    onselect() {
+      Cesium.createWorldImageryAsync()
+        .then((p) => { viewer.imageryLayers.removeAll(); viewer.imageryLayers.addImageryProvider(p); })
+        .catch(() => { alert("Cesium Ion imagery failed — set ionToken in cesium-config.js"); });
+    },
+  },
+];
+
+const imageryMenu = document.getElementById("imageryMenu");
+imageryOptions.forEach((opt, i) => {
+  const el = document.createElement("option");
+  el.value = String(i);
+  el.textContent = opt.text;
+  imageryMenu.appendChild(el);
+});
+imageryMenu.addEventListener("change", () => {
+  imageryOptions[Number(imageryMenu.value)].onselect();
+});
+
+// Start with ESRI Satellite
+imageryOptions[0].onselect();
 
 viewer.scene.globe.enableLighting = true;
 viewer.scene.globe.depthTestAgainstTerrain = true;
@@ -174,6 +240,16 @@ const zoomPresets = [
       viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(-109.82, 38.2, 18000),
         orientation: { heading: 0, pitch: Cesium.Math.toRadians(-40), roll: 0 },
+        duration: 2,
+      });
+    },
+  },
+  {
+    text: "Provo Peak",
+    onselect() {
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(-111.571, 40.270, 6000),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 },
         duration: 2,
       });
     },
