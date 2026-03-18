@@ -1,7 +1,7 @@
 services:
   trailforkd:
     build: .
-    image: trailforkd:latest
+    image: sammothxc/trailforkd:latest
     ports:
       - "8080:80"
     environment:
