@@ -5,8 +5,8 @@ services:
     ports:
       - "8080:80"
     environment:
-      - CESIUM_ION_TOKEN=${CESIUM_ION_TOKEN:-}
-      - TERRAIN_URL=${TERRAIN_URL:-}
+      - CESIUM_ION_TOKEN=
+      - TERRAIN_URL=
     restart: unless-stopped
 
   terrain-server:
