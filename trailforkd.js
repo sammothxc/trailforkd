@@ -87,6 +87,21 @@ const imageryOptions = [
         .catch(() => { alert("Cesium Ion imagery failed — set ionToken in trailforkd-config.js"); });
     },
   },
+  {
+  text: "Utah 15cm Hexagon Imagery",
+  onselect() {
+    setImagery(new Cesium.WebMapTileServiceImageryProvider({
+      url: "https://discover.agrc.utah.gov/login/path/traffic-ski-gyro-beast/wmts",
+      layer: "15cm_hexagon_utah",
+      style: "default",
+      format: "image/png",
+      tileMatrixSetID: "0to20",
+      maximumLevel: 20,
+      tilingScheme: new Cesium.WebMercatorTilingScheme(),
+      credit: "Utah AGRC (Hexagon)"
+    }));
+  },
+}
 ];
 
 const imageryMenu = document.getElementById("imageryMenu");
