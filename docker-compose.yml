@@ -1,19 +1,12 @@
-version: "3.8"
-
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+  trailforkd:
+    build: .
+    image: trailforkd:latest
     ports:
-      - "5173:5173"
+      - "8080:80"
     environment:
-      - HOST=0.0.0.0
-      - PORT=5173
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+      - CESIUM_ION_TOKEN=${CESIUM_ION_TOKEN:-}
+      - TERRAIN_URL=${TERRAIN_URL:-}
     restart: unless-stopped
 
   terrain-server:

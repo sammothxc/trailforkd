@@ -8,7 +8,7 @@ dist/
 # Environment files
 .env
 .env.local
-cesium-config.js
+trailforkd-config.js
 
 # Editors
 .vscode/

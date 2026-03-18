@@ -2,10 +2,10 @@
 // Adapted from Cesium Sandcastle terrain example — Sandcastle replaced with vanilla DOM.
 // Tries local terrain server (localhost:8082) first, falls back to ellipsoid.
 
-const LOCAL_TERRAIN_URL = "http://localhost:8082";
-
-// Ion token loaded from cesium-config.js (gitignored — copy from cesium-config.example.js)
+// Config loaded from trailforkd-config.js (gitignored — copy from trailforkd-config.example.js)
 const ionToken = window.CESIUM_CONFIG?.ionToken;
+const LOCAL_TERRAIN_URL = window.CESIUM_CONFIG?.terrainUrl || "";
+
 if (ionToken) {
   Cesium.Ion.defaultAccessToken = ionToken;
 }
@@ -83,7 +83,7 @@ const imageryOptions = [
     onselect() {
       Cesium.createWorldImageryAsync()
         .then((p) => { viewer.imageryLayers.removeAll(); viewer.imageryLayers.addImageryProvider(p); })
-        .catch(() => { alert("Cesium Ion imagery failed — set ionToken in cesium-config.js"); });
+        .catch(() => { alert("Cesium Ion imagery failed — set ionToken in trailforkd-config.js"); });
     },
   },
 ];
@@ -135,29 +135,31 @@ flyToUtah(0); // instant on load
 
 // --- Try local terrain server, fall back to ellipsoid ---
 
-setStatus("connecting to localhost:8082\u2026");
-
-Cesium.CesiumTerrainProvider.fromUrl(LOCAL_TERRAIN_URL, {
-  requestVertexNormals: true,
-})
-  .then((provider) => {
-    viewer.terrainProvider = provider;
-    setStatus("localhost:8082 \u2713");
-  })
-  .catch(() => {
-    setStatus("localhost:8082 unavailable \u2014 ellipsoid fallback (generate terrain tiles to enable)");
-  });
+if (LOCAL_TERRAIN_URL) {
+  setStatus("connecting to " + LOCAL_TERRAIN_URL + "\u2026");
+  Cesium.CesiumTerrainProvider.fromUrl(LOCAL_TERRAIN_URL, { requestVertexNormals: true })
+    .then((provider) => {
+      viewer.terrainProvider = provider;
+      setStatus(LOCAL_TERRAIN_URL + " \u2713");
+    })
+    .catch(() => {
+      setStatus(LOCAL_TERRAIN_URL + " unavailable \u2014 ellipsoid fallback");
+    });
+} else {
+  setStatus("no terrain URL configured \u2014 ellipsoid fallback (set terrainUrl in trailforkd-config.js)");
+}
 
 // --- Terrain provider selector ---
 
 const terrainOptions = [
   {
-    text: "Local Terrain Server (localhost:8082)",
+    text: LOCAL_TERRAIN_URL ? "Local Terrain Server (" + LOCAL_TERRAIN_URL + ")" : "Local Terrain Server (not configured)",
     onselect() {
-      setStatus("connecting to localhost:8082\u2026");
+      if (!LOCAL_TERRAIN_URL) { setStatus("no terrain URL \u2014 set terrainUrl in trailforkd-config.js"); return; }
+      setStatus("connecting to " + LOCAL_TERRAIN_URL + "\u2026");
       Cesium.CesiumTerrainProvider.fromUrl(LOCAL_TERRAIN_URL, { requestVertexNormals: true })
-        .then((p) => { viewer.terrainProvider = p; setStatus("localhost:8082 \u2713"); })
-        .catch(() => { setStatus("localhost:8082 unavailable"); });
+        .then((p) => { viewer.terrainProvider = p; setStatus(LOCAL_TERRAIN_URL + " \u2713"); })
+        .catch(() => { setStatus(LOCAL_TERRAIN_URL + " unavailable"); });
     },
   },
   {

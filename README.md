@@ -1,69 +1,81 @@
 # trailforkd
 
-Trailforkd is a self-hosted Utah trail planning web app (Phase 1 scaffold).
+Self-hosted 3D Utah trail planning app. Free alternative to Trailforks' paid route planning features, scoped to Utah. Runs on a homelab (TrueNAS + Dockge) and exposed via Cloudflare tunnel.
 
-## Getting Started (Phase 1)
+Built on [CesiumJS](https://cesium.com/platform/cesiumjs/) with ESRI satellite imagery and optional self-hosted terrain tiles.
 
-### 1) Install dependencies
+## Current State
 
-```bash
-cd frontend
-npm install
-```
+Phase 1 complete: 3D terrain viewer with imagery switcher, Utah location presets, and terrain provider selector. No backend or trail data yet.
 
-### 2) Run the frontend (dev)
+## Running Locally
 
-```bash
-npm run dev
-```
-
-The app will be available at https://localhost:5173.
-
-### 3) Run via Docker Compose (dev)
+No build step. Open `trailforkd.html` directly in a browser, or serve the folder with any static file server:
 
 ```bash
-docker compose up --build
+npx serve .
 ```
 
-The app will be available at https://localhost:5173.
+## Configuration
 
----
-
-## Self-hosting terrain (no Cesium Ion)
-
-This project can run entirely self-hosted by serving your own Cesium quantized-mesh terrain tiles.
-
-### 1) Generate terrain tiles
-
-Create quantized-mesh tiles using a DEM (e.g., Utah 10m) and `ctb-tile`:
+Copy the example config and fill in your values:
 
 ```bash
-ctb-tile -f Mesh -C -N -o data/terrain-tiles /path/to/utah_dem_10m.tif
+cp trailforkd-config.example.js trailforkd-config.js
 ```
 
-You must end up with `data/terrain-tiles/layer.json` and `*.terrain` files.
+```js
+// trailforkd-config.js (gitignored)
+window.CESIUM_CONFIG = {
+  ionToken: "",    // optional — https://ion.cesium.com for Cesium World Terrain
+  terrainUrl: "",  // URL of your terrain tile server, e.g. "http://truenas.local:8082"
+};
+```
 
-### 2) Run the terrain tile server
+## Docker Deployment (TrueNAS / Dockge)
 
-The repo includes a minimal nginx service that serves `data/terrain-tiles` on port 8082.
-
-If you use Docker Compose (recommended):
+Build and push the image:
 
 ```bash
-docker compose up --build
+docker build -t youruser/trailforkd:latest .
+docker push youruser/trailforkd:latest
 ```
 
-### 3) Configure the frontend
+Dockge compose stack:
 
-Set the terrain URL in `.env`:
+```yaml
+services:
+  trailforkd:
+    image: youruser/trailforkd:latest
+    ports:
+      - "8080:80"
+    environment:
+      - CESIUM_ION_TOKEN=your_token_here
+      - TERRAIN_URL=http://truenas.local:8082
+    restart: unless-stopped
 
-```env
-VITE_TERRAIN_URL=http://localhost:8082
+  terrain-server:
+    image: nginx:alpine
+    ports:
+      - "8082:80"
+    volumes:
+      - /path/to/terrain-tiles:/usr/share/nginx/html:ro
+      - /path/to/trailforkd/nginx/terrain.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
 ```
 
-Restart the frontend dev server after changing `.env`.
+The `terrain-server` is only needed once you have terrain tiles generated (see below). Without it, the viewer falls back to a flat ellipsoid.
 
-### 4) Performance tuning (when terrain is loaded)
+## Self-Hosted Terrain Tiles
 
-- The viewer is configured to enable `requestRenderMode` and a higher `maximumScreenSpaceError` for smoother performance.
-- If you still see slow rendering, try lowering the tile `maximumScreenSpaceError` in `frontend/src/components/CesiumViewer.tsx`.
+Terrain tiles are not included — they're generated from UGRC DEM data and can be ~1 GB.
+
+1. Download the Utah 10m DEM from [UGRC](https://gis.utah.gov/products/sgid/elevation/)
+2. Generate quantized mesh tiles using [ctb-tile](https://github.com/tum-gis/cesium-terrain-builder-docker):
+
+```bash
+ctb-tile -f Mesh -C -N -o /data/terrain-tiles /data/utah_dem_10m.tif
+ctb-tile -f Mesh -C -N -l -o /data/terrain-tiles /data/utah_dem_10m.tif
+```
+
+3. Point `terrain-server` at the output directory and set `TERRAIN_URL` in your compose stack.
