@@ -5,6 +5,7 @@
 // Config loaded from trailforkd-config.js (gitignored — copy from trailforkd-config.example.js)
 const ionToken = window.CESIUM_CONFIG?.ionToken;
 const LOCAL_TERRAIN_URL = window.CESIUM_CONFIG?.terrainUrl || "";
+const HEXAGON_URL = window.CESIUM_CONFIG?.hexagonUrl || "";
 
 if (ionToken) {
   Cesium.Ion.defaultAccessToken = ionToken;
@@ -87,21 +88,21 @@ const imageryOptions = [
         .catch(() => { alert("Cesium Ion imagery failed — set ionToken in trailforkd-config.js"); });
     },
   },
-  {
-  text: "Utah 15cm Hexagon Imagery",
-  onselect() {
-    setImagery(new Cesium.WebMapTileServiceImageryProvider({
-      url: "https://discover.agrc.utah.gov/login/path/traffic-ski-gyro-beast/wmts",
-      layer: "15cm_hexagon_utah",
-      style: "default",
-      format: "image/png",
-      tileMatrixSetID: "0to20",
-      maximumLevel: 20,
-      tilingScheme: new Cesium.WebMercatorTilingScheme(),
-      credit: "Utah AGRC (Hexagon)"
-    }));
-  },
-}
+  ...(HEXAGON_URL ? [{
+    text: "Utah 15cm Hexagon Imagery",
+    onselect() {
+      setImagery(new Cesium.WebMapTileServiceImageryProvider({
+        url: HEXAGON_URL,
+        layer: "15cm_hexagon_utah",
+        style: "default",
+        format: "image/png",
+        tileMatrixSetID: "0to20",
+        maximumLevel: 20,
+        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+        credit: "Utah AGRC (Hexagon)"
+      }));
+    },
+  }] : [])
 ];
 
 const imageryMenu = document.getElementById("imageryMenu");
@@ -317,3 +318,157 @@ addToggle("Lighting", viewer.scene.globe.enableLighting, (v) => {
 addToggle("Fog", viewer.scene.fog.enabled, (v) => {
   viewer.scene.fog.enabled = v;
 });
+
+// --- Google Photorealistic 3D Tiles ---
+
+let google3DTileset = null;
+
+const google3DBtn = document.createElement("button");
+google3DBtn.className = "tb-btn";
+google3DBtn.textContent = "Google 3D Tiles";
+google3DBtn.addEventListener("click", async () => {
+  if (!ionToken) {
+    alert("Google Photorealistic 3D Tiles requires a Cesium Ion token — set ionToken in trailforkd-config.js");
+    return;
+  }
+  const enabling = !google3DBtn.classList.contains("active");
+  if (enabling) {
+    try {
+      google3DTileset = await Cesium.createGooglePhotorealistic3DTileset();
+      viewer.scene.primitives.add(google3DTileset);
+      viewer.scene.globe.show = false;
+      google3DBtn.classList.add("active");
+    } catch (e) {
+      alert("Google 3D Tiles failed: " + e.message);
+    }
+  } else {
+    if (google3DTileset) {
+      viewer.scene.primitives.remove(google3DTileset);
+      google3DTileset = null;
+    }
+    viewer.scene.globe.show = true;
+    google3DBtn.classList.remove("active");
+  }
+});
+document.getElementById("toggleButtons").appendChild(google3DBtn);
+
+// --- Trail overlay (Overpass API) ---
+
+const TRAIL_MAX_HEIGHT = 50000; // don't fetch when camera is above this (metres)
+const TRAIL_COLORS = {
+  path:    Cesium.Color.ORANGE,
+  footway: Cesium.Color.YELLOW,
+  track:   Cesium.Color.fromCssColorString("#c8a96e"),
+};
+
+let trailEntities = [];
+let trailDebounce = null;
+let trailController = null;
+let trailsEnabled = true;
+
+const trailStatusEl = document.createElement("div");
+trailStatusEl.id = "trailStatus";
+trailStatusEl.style.cssText = "position:absolute;bottom:28px;left:8px;background:rgba(20,24,40,.75);color:#aaa;font-size:11px;font-family:monospace;padding:4px 8px;border-radius:3px;z-index:100;";
+document.body.appendChild(trailStatusEl);
+
+function setTrailStatus(msg) {
+  trailStatusEl.textContent = msg ? "trails: " + msg : "";
+}
+
+function clearTrails() {
+  trailEntities.forEach(e => viewer.entities.remove(e));
+  trailEntities = [];
+}
+
+async function fetchTrails() {
+  if (!trailsEnabled) return;
+
+  const height = viewer.camera.positionCartographic.height;
+  if (height > TRAIL_MAX_HEIGHT) {
+    clearTrails();
+    setTrailStatus("zoom in to load trails");
+    return;
+  }
+
+  const rect = viewer.camera.computeViewRectangle();
+  if (!rect) return;
+
+  const s = Cesium.Math.toDegrees(rect.south).toFixed(5);
+  const w = Cesium.Math.toDegrees(rect.west).toFixed(5);
+  const n = Cesium.Math.toDegrees(rect.north).toFixed(5);
+  const e = Cesium.Math.toDegrees(rect.east).toFixed(5);
+
+  const query = `[out:json][timeout:25];(way["highway"~"^(path|footway|track)$"]["foot"!="no"](${s},${w},${n},${e}););out geom;`;
+
+  if (trailController) trailController.abort();
+  trailController = new AbortController();
+
+  setTrailStatus("loading…");
+  try {
+    const res = await fetch(
+      "https://overpass-api.de/api/interpreter",
+      { method: "POST", body: query, signal: trailController.signal }
+    );
+    const data = await res.json();
+
+    clearTrails();
+    data.elements.forEach(way => {
+      if (!way.geometry || way.geometry.length < 2) return;
+      const positions = way.geometry.map(pt =>
+        Cesium.Cartesian3.fromDegrees(pt.lon, pt.lat)
+      );
+      const highway = way.tags?.highway || "path";
+      const color = TRAIL_COLORS[highway] || Cesium.Color.ORANGE;
+      const name = way.tags?.name || way.tags?.["name:en"] || null;
+
+      const entity = viewer.entities.add({
+        name,
+        polyline: {
+          positions,
+          width: 2,
+          clampToGround: true,
+          material: color,
+        },
+      });
+      trailEntities.push(entity);
+    });
+
+    setTrailStatus(trailEntities.length + " trails loaded");
+  } catch (err) {
+    if (err.name !== "AbortError") setTrailStatus("fetch failed");
+  }
+}
+
+viewer.camera.moveEnd.addEventListener(() => {
+  clearTimeout(trailDebounce);
+  trailDebounce = setTimeout(fetchTrails, 800);
+});
+
+// Trail toggle button
+const trailBtn = document.createElement("button");
+trailBtn.className = "tb-btn active";
+trailBtn.textContent = "Trails";
+trailBtn.addEventListener("click", () => {
+  trailsEnabled = !trailsEnabled;
+  trailBtn.classList.toggle("active", trailsEnabled);
+  if (trailsEnabled) {
+    fetchTrails();
+  } else {
+    if (trailController) trailController.abort();
+    clearTrails();
+    setTrailStatus("disabled");
+  }
+});
+document.getElementById("toggleButtons").appendChild(trailBtn);
+
+// Click a trail to show its name
+const clickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+clickHandler.setInputAction(click => {
+  const picked = viewer.scene.pick(click.position);
+  if (Cesium.defined(picked) && picked.id?.name) {
+    setTrailStatus('selected: "' + picked.id.name + '"');
+  }
+}, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+// Initial load
+fetchTrails();
