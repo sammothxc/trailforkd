@@ -6,6 +6,7 @@
 const ionToken = window.CESIUM_CONFIG?.ionToken;
 const LOCAL_TERRAIN_URL = window.CESIUM_CONFIG?.terrainUrl || "";
 const HEXAGON_URL = window.CESIUM_CONFIG?.hexagonUrl || "";
+const ENABLE_3D_TILES = window.CESIUM_CONFIG?.google3dTiles === true;
 
 if (ionToken) {
   Cesium.Ion.defaultAccessToken = ionToken;
@@ -321,36 +322,38 @@ addToggle("Fog", viewer.scene.fog.enabled, (v) => {
 
 // --- Google Photorealistic 3D Tiles ---
 
-let google3DTileset = null;
+if (ENABLE_3D_TILES) {
+  let google3DTileset = null;
 
-const google3DBtn = document.createElement("button");
-google3DBtn.className = "tb-btn";
-google3DBtn.textContent = "Google 3D Tiles";
-google3DBtn.addEventListener("click", async () => {
-  if (!ionToken) {
-    alert("Google Photorealistic 3D Tiles requires a Cesium Ion token — set ionToken in trailforkd-config.js");
-    return;
-  }
-  const enabling = !google3DBtn.classList.contains("active");
-  if (enabling) {
-    try {
-      google3DTileset = await Cesium.createGooglePhotorealistic3DTileset();
-      viewer.scene.primitives.add(google3DTileset);
-      viewer.scene.globe.show = false;
-      google3DBtn.classList.add("active");
-    } catch (e) {
-      alert("Google 3D Tiles failed: " + e.message);
+  const google3DBtn = document.createElement("button");
+  google3DBtn.className = "tb-btn";
+  google3DBtn.textContent = "Google 3D Tiles";
+  google3DBtn.addEventListener("click", async () => {
+    if (!ionToken) {
+      alert("Google Photorealistic 3D Tiles requires a Cesium Ion token — set CESIUM_ION_TOKEN in your compose env.");
+      return;
     }
-  } else {
-    if (google3DTileset) {
-      viewer.scene.primitives.remove(google3DTileset);
-      google3DTileset = null;
+    const enabling = !google3DBtn.classList.contains("active");
+    if (enabling) {
+      try {
+        google3DTileset = await Cesium.createGooglePhotorealistic3DTileset();
+        viewer.scene.primitives.add(google3DTileset);
+        viewer.scene.globe.show = false;
+        google3DBtn.classList.add("active");
+      } catch (e) {
+        alert("Google 3D Tiles failed: " + e.message);
+      }
+    } else {
+      if (google3DTileset) {
+        viewer.scene.primitives.remove(google3DTileset);
+        google3DTileset = null;
+      }
+      viewer.scene.globe.show = true;
+      google3DBtn.classList.remove("active");
     }
-    viewer.scene.globe.show = true;
-    google3DBtn.classList.remove("active");
-  }
-});
-document.getElementById("toggleButtons").appendChild(google3DBtn);
+  });
+  document.getElementById("toggleButtons").appendChild(google3DBtn);
+}
 
 // --- Trail overlay (Overpass API) ---
 

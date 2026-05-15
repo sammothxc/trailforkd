@@ -34,12 +34,11 @@ services:
     restart: unless-stopped
     volumes:
       - ./data/terrain-tiles:/usr/share/nginx/html:ro
-      - ./nginx/terrain.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - internal
 
   postgres:
-    container_name: trailforkd_postres
+    container_name: trailforkd_postgres
     image: postgis/postgis:15-3.4-alpine
     restart: unless-stopped
     environment:

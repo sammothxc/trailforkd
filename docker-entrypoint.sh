@@ -10,6 +10,7 @@ window.CESIUM_CONFIG = {
   ionToken: "${CESIUM_ION_TOKEN:-}",
   terrainUrl: "${TERRAIN_URL:-}",
   hexagonUrl: "${HEXAGON_URL:-}",
+  google3dTiles: ${ENABLE_3D_TILES:-false},
 };
 EOF
 
