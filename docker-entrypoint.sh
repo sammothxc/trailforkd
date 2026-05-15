@@ -13,4 +13,7 @@ window.CESIUM_CONFIG = {
 };
 EOF
 
+# Start trail API in background (connects to postgres container)
+node /app/index.js &
+
 exec nginx -g 'daemon off;'

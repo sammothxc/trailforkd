@@ -398,28 +398,28 @@ async function fetchTrails() {
   const n = Cesium.Math.toDegrees(rect.north).toFixed(5);
   const e = Cesium.Math.toDegrees(rect.east).toFixed(5);
 
-  const query = `[out:json][timeout:25];(way["highway"~"^(path|footway|track)$"]["foot"!="no"](${s},${w},${n},${e}););out geom;`;
-
   if (trailController) trailController.abort();
   trailController = new AbortController();
 
-  setTrailStatus("loading…");
+  setTrailStatus("loading\u2026");
   try {
     const res = await fetch(
-      "https://overpass-api.de/api/interpreter",
-      { method: "POST", body: query, signal: trailController.signal }
+      `/api/trails?west=${w}&south=${s}&east=${e}&north=${n}`,
+      { signal: trailController.signal }
     );
-    const data = await res.json();
+    const geojson = await res.json();
 
     clearTrails();
-    data.elements.forEach(way => {
-      if (!way.geometry || way.geometry.length < 2) return;
-      const positions = way.geometry.map(pt =>
-        Cesium.Cartesian3.fromDegrees(pt.lon, pt.lat)
+    geojson.features.forEach(feature => {
+      const coords = feature.geometry?.coordinates;
+      if (!coords || coords.length < 2) return;
+
+      const positions = coords.map(([lon, lat]) =>
+        Cesium.Cartesian3.fromDegrees(lon, lat)
       );
-      const highway = way.tags?.highway || "path";
+      const highway = feature.properties?.highway || "path";
       const color = TRAIL_COLORS[highway] || Cesium.Color.ORANGE;
-      const name = way.tags?.name || way.tags?.["name:en"] || null;
+      const name = feature.properties?.name || null;
 
       const entity = viewer.entities.add({
         name,

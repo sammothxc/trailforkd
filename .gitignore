@@ -10,6 +10,11 @@ dist/
 .env.local
 trailforkd-config.js
 
+# Terrain tiles and OSM data (large binary data, generated locally)
+data/terrain-tiles/
+data/*.osm.pbf
+data/*.pbf
+
 # Editors
 .vscode/
 .idea/

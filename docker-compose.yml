@@ -1,13 +1,14 @@
 services:
   trailforkd:
     build: .
-    image: sammothxc/trailforkd:latest
+    image: ghcr.io/sammothxc/trailforkd:latest
     ports:
       - "8080:80"
     environment:
       - CESIUM_ION_TOKEN=
       - TERRAIN_URL=
       - HEXAGON_URL=
+      - DATABASE_URL=postgres://trailforkd:trailforkd@postgres/trailforkd
     networks:
       - internal
     restart: unless-stopped
@@ -21,5 +22,22 @@ services:
       - internal
     restart: unless-stopped
 
+  postgres:
+    image: postgis/postgis:15-3.4-alpine
+    environment:
+      - POSTGRES_DB=trailforkd
+      - POSTGRES_USER=trailforkd
+      - POSTGRES_PASSWORD=trailforkd
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./data/initdb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+    restart: unless-stopped
+
+
 networks:
   internal:
+
+volumes:
+  postgres-data:
