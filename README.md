@@ -1,67 +1,62 @@
 # trailforkd
 
-Self-hosted 3D Utah trail planning app. Free alternative to Trailforks' paid route planning features, scoped to Utah. Runs on a homelab (TrueNAS + Dockge) and exposed via Cloudflare tunnel.
+Self-hosted 3D Utah trail planning Docker app. Free alternative to Trailforks' paid route planning features, scoped to Utah.
 
 Built on [CesiumJS](https://cesium.com/platform/cesiumjs/) with ESRI satellite imagery and optional self-hosted terrain tiles.
 
-## Current State
-
-Phase 1 complete: 3D terrain viewer with imagery switcher, Utah location presets, and terrain provider selector. No backend or trail data yet.
-
 ## Running Locally
 
-No build step. Open `trailforkd.html` directly in a browser, or serve the folder with any static file server:
+No build step. Open `trailforkd.html` directly in a browser.
 
-```bash
-npx serve .
-```
-
-## Configuration
-
-Copy the example config and fill in your values:
-
-```bash
-cp trailforkd-config.example.js trailforkd-config.js
-```
-
-```js
-// trailforkd-config.js (gitignored)
-window.CESIUM_CONFIG = {
-  ionToken: "",    // optional — https://ion.cesium.com for Cesium World Terrain
-  terrainUrl: "",  // URL of your terrain tile server, e.g. "http://truenas.local:8082"
-};
-```
-
-## Docker Deployment (TrueNAS / Dockge)
-
-Build and push the image:
-
-```bash
-docker build -t youruser/trailforkd:latest .
-docker push youruser/trailforkd:latest
-```
+## Docker Deployment
 
 Dockge compose stack:
 
 ```yaml
 services:
   trailforkd:
-    image: youruser/trailforkd:latest
-    ports:
-      - "8080:80"
-    environment:
-      - CESIUM_ION_TOKEN=your_token_here
-      - TERRAIN_URL=http://truenas.local:8082
+    container_name: trailforkd
+    image: ghcr.io/sammothxc/trailforkd
     restart: unless-stopped
+    ports:
+      - 8080:80
+    environment:
+      - CESIUM_ION_TOKEN=${CESIUM_ION_TOKEN}
+      - TERRAIN_URL=${TERRAIN_URL}
+      - HEXAGON_URL=${HEXAGON_URL}
+      - DATABASE_URL=postgres://trailforkd:trailforkd@postgres/trailforkd
+    networks:
+      - internal
 
   terrain-server:
+    container_name: terrain-server
     image: nginx:alpine
-    ports:
-      - "8082:80"
-    volumes:
-      - /path/to/terrain-tiles:/usr/share/nginx/html:ro
-      - /path/to/trailforkd/nginx/terrain.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
+    volumes:
+      - ./data/terrain-tiles:/usr/share/nginx/html:ro
+      - ./nginx/terrain.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - internal
+
+  postgres:
+    container_name: trailforkd_postres
+    image: postgis/postgis:15-3.4-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=trailforkd
+      - POSTGRES_USER=trailforkd
+      - POSTGRES_PASSWORD=trailforkd
+    volumes:
+      - ./data/postgres-data:/var/lib/postgresql/data
+      - ./data/initdb:/docker-entrypoint-initdb.d:ro
+    networks:
+      - internal
+
+networks:
+  internal:
+
+volumes:
+  postgres-data:
 ```
 
 The `terrain-server` is only needed once you have terrain tiles generated (see below). Without it, the viewer falls back to a flat ellipsoid.

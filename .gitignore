@@ -1,15 +1,6 @@
 # Node
 node_modules/
 
-# Build outputs
-dist/
-.build/
-
-# Environment files
-.env
-.env.local
-trailforkd-config.js
-
 # Terrain tiles and OSM data (large binary data, generated locally)
 data/terrain-tiles/
 data/*.osm.pbf

@@ -1,8 +1,0 @@
-.git
-.claude
-data/
-*.md
-LICENSE
-.gitignore
-.dockerignore
-docker-compose.yml
