@@ -3,8 +3,6 @@
 data/
 *.md
 LICENSE
-trailforkd-config.js
-trailforkd-config.example.js
 .gitignore
 .dockerignore
 docker-compose.yml
