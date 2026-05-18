@@ -6,7 +6,7 @@ Built on [CesiumJS](https://cesium.com/platform/cesiumjs/) with ESRI satellite i
 
 ## Running Locally
 
-No build step. Open `trailforkd.html` directly in a browser.
+No build step, just open `trailforkd.html` directly in a browser.
 
 ## Docker Deployment
 
